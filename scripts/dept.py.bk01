@@ -1,0 +1,27 @@
+import csv
+import sys
+import polyglot
+import os
+
+def getDepartmentNameById(deptId):
+  with open('departement.csv', 'r') as file:
+    reader = csv.reader(file)
+    for row in reader:
+      names[row[1]]=row[3]
+      if(row[1]== deptId):
+#        print(row)
+#        polyglot.export_value('javaObj')
+        return row[3]
+    
+    return ""
+
+dnames={}
+with open('/Users/enonowog/Projects/Demos/helidon-polyglot-demo/scripts/departement.csv', 'r') as file:
+  reader = csv.reader(file)
+  for row in reader:
+    dnames[row[1]]=row[3]
+polyglot.export_value("departmentNamesObj",dnames)
+#enames=polyglot.import_value("departmentNamesObj")
+#print(enames["78"])
+#print(getDepartmentNameById(sys.argv[1]))
+print("os.getcwd="+os.getcwd())
