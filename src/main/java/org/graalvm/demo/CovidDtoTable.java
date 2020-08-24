@@ -5,12 +5,14 @@ import org.graalvm.polyglot.proxy.ProxyArray;
 
 public final class CovidDtoTable {
 	
-	public DepartmentProxyArrayColumn dep;
+	public DepartmentIdProxyArrayColumn departmentId;
+	public DepartmentNameProxyArrayColumn departmentName;
 	public CsvFilePathProxyArrayColumn csvFilePath;
 	
 
 	public CovidDtoTable (CovidDto[] dto) {
-		this.dep= new DepartmentProxyArrayColumn(dto);
+		this.departmentId= new DepartmentIdProxyArrayColumn(dto);
+		this.departmentName= new DepartmentNameProxyArrayColumn(dto);
 		this.csvFilePath= new CsvFilePathProxyArrayColumn(dto);
 		
 	}
@@ -18,25 +20,28 @@ public final class CovidDtoTable {
 	
 	public static final class CovidDto {
 		
-		public String dep;
+		public String departmentId;
 		public String csvFilePath;
-		public CovidDto( String dep,String csvFilePath) {
-			this.dep=dep;
+		public String departmentName;
+		
+		public CovidDto( String departmentId,String csvFilePath, String departmentName) {
+			this.departmentId=departmentId;
 			this.csvFilePath=csvFilePath;
+			this.departmentName=departmentName;
 		}
 
 	}
 	
 	
-	public static class DepartmentProxyArrayColumn implements ProxyArray {
+	public static class DepartmentIdProxyArrayColumn implements ProxyArray {
         private final CovidDto[] dto;
 
-        public DepartmentProxyArrayColumn(CovidDto[] dto) {
+        public DepartmentIdProxyArrayColumn(CovidDto[] dto) {
             this.dto = dto;
         }
 
         public Object get(long index) {
-            return dto[(int) index].dep;
+            return dto[(int) index].departmentId;
         }
 
         public void set(long index, Value value) {
@@ -48,6 +53,27 @@ public final class CovidDtoTable {
         }
     }
 
+	
+	
+	public static class DepartmentNameProxyArrayColumn implements ProxyArray {
+        private final CovidDto[] dto;
+
+        public DepartmentNameProxyArrayColumn(CovidDto[] dto) {
+            this.dto = dto;
+        }
+
+        public Object get(long index) {
+            return dto[(int) index].departmentName;
+        }
+
+        public void set(long index, Value value) {
+            throw new UnsupportedOperationException();
+        }
+
+        public long getSize() {
+            return dto.length;
+        }
+    }
 	
 	public static class CsvFilePathProxyArrayColumn implements ProxyArray {
         private final CovidDto[] dto;

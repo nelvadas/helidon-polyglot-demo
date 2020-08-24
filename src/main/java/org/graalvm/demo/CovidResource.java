@@ -5,10 +5,7 @@ import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.net.MalformedURLException;
 import java.net.URL;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.function.Function;
 import java.util.logging.Logger;
 
@@ -31,16 +28,30 @@ import org.graalvm.polyglot.Value;
 /**
  * A simple JAX-RS resource to greet you. Examples:
  *
- * Get default Hospitalization graph (Yvelines) : curl -X GET
+ * Download covid Dataset from French Heath Agency
+ * http://localhost:8080/covid-19/download
+ * 
+ * Check the download status
+ *  curl -X GET -I curl localhost:8080/covid-19/fr/download/status 
+ * HTTP 200 file download and is present
+ * HTTP 500 download failed.
+ * 
+ *
+ ** Get department name by Id ( python call)
+ * http://localhost:8080/covid-19/fr/department/{departmentId}
+ * 
+ * Get Hospitalization graph for a department : curl -X GET
+ * 
+ * http://localhost:8080/covid-19/fr/trends/{departmentId}
+ * 
+ * Get Hospitalization graph for PARIS(departmentID=75) curl -X GET
+ * http://localhost:8080/covid-19/fr/trends/75
+ *
+ *
+ * Get default Hospitalization graph (departmentId=78) : curl -X GET
  * http://localhost:8080/covid-19/fr/
- *
- * Get Hospitalization graph for PARIS(75) : curl -X GET
- * http://localhost:8080//covid-19/fr/75
- *
- * Change greeting curl -X PUT -H "Content-Type: application/json" -d
- * '{"greeting" : "Howdy"}' http://localhost:8080/greet/greeting
- *
- * The message is returned as a JSON object.
+ * 
+ * 
  */
 @Path("/covid-19/fr/")
 @RequestScoped
@@ -50,33 +61,30 @@ public class CovidResource {
 	private static Logger logger = Logger.getLogger(CovidResource.class.getName());
 
 	private Source rSource;
-	private final String scriptUrl;
+	private String rScriptFile;
 	private Context polyglot;
 	private String csvLocalFilePath;
 	private String csvDataRemoteSource;
-	private String llvmScriptUrl;
-	private String pythonScript;
-	private String jsScript;
+	private String llvmScriptFile;
+	private String pythonScriptFile;
 
 	Function<String, String> getDepartmentNameByIdFunc;
 	Function<String, String> downloadCsvDataFunc;
 
 	@Inject
-	public CovidResource(@ConfigProperty(name = "app.covid.rscript.url") String scriptUrl,
+	public CovidResource(@ConfigProperty(name = "app.covid.rscript") String rScriptUrl,
 			@ConfigProperty(name = "app.covid.data.download.csvfullpath") String csvLocalFilePath,
 			@ConfigProperty(name = "app.covid.data.download.source") String csvDataRemoteSource,
-			@ConfigProperty(name = "app.covid.cscript.url") String llvmScriptUrl,
-			@ConfigProperty(name = "app.covid.pyscript") String pythonScript,
-			@ConfigProperty(name = "app.covid.jsscript") String jsScript) {
-		this.scriptUrl = scriptUrl;
-		this.llvmScriptUrl = llvmScriptUrl;
+			@ConfigProperty(name = "app.covid.cscript") String llvmScriptFile,
+			@ConfigProperty(name = "app.covid.pyscript") String pythonScriptFile) {
+		this.rScriptFile = rScriptUrl;
+		this.llvmScriptFile = llvmScriptFile;
 		this.csvLocalFilePath = csvLocalFilePath;
 		this.csvDataRemoteSource = csvDataRemoteSource;
-		this.pythonScript = pythonScript;
-		this.jsScript = jsScript;
+		this.pythonScriptFile = pythonScriptFile;
 
 		try {
-			this.rSource = Source.newBuilder("R", new URL(scriptUrl)).name("covid.R").build();
+			this.rSource = Source.newBuilder("R", new File(rScriptFile)).build();
 			this.polyglot = Context.newBuilder().allowAllAccess(true).build();
 
 			this.getDepartmentNameByIdFunc = loadPythonScript();
@@ -86,44 +94,57 @@ public class CovidResource {
 		}
 	}
 
-	@Path("/cdownload")
+	/**
+	 * Check the local datafile file size using a C function call
+	 * @return
+	 */
+	@Path("/download/status")
 	@GET
 	@Produces(MediaType.APPLICATION_JSON)
 	public Response llvmDownloadCsvData() {
 
 		try {
-			Source source = Source.newBuilder("llvm", new URL(llvmScriptUrl)).build();
+			Source source = Source.newBuilder("llvm", new File(llvmScriptFile)).build();
 			Value cpart = polyglot.eval(source);
-			cpart.execute();
+			int status = cpart.execute(null, csvLocalFilePath).asInt();
+			if(status == 0 ) {
+				logger.info(String.format("\n[SUCCES] Downloaded file %s to %s", csvDataRemoteSource, csvLocalFilePath));
+				return Response.ok().build();
+			}
+			else {
+				logger.log(java.util.logging.Level.SEVERE, String.format("\n[ERROR] while Downloading file %s to %s", csvDataRemoteSource, csvLocalFilePath));
+				return Response.serverError().build();
+			}
 		} catch (IOException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 
-		logger.info(String.format("Downloading file %s to %s", csvDataRemoteSource, csvLocalFilePath));
+		
 		return Response.ok().build();
 	}
 
-	@Path("/department")
+	@Path("/department/{departmentId}")
 	@GET
 	@Produces(MediaType.APPLICATION_JSON)
-	public Response downloadCsvData2() {
+	public Response getDepartmentName(@PathParam("departmentId") String departmentId) {
 
 		try {
-
-			String dname = getDepartmentNameByIdFunc.apply("12");
-			logger.info(String.format("Departement 12=%s", dname));
-
-			return Response.ok().build();
+			String dname = getDepartmentNameByIdFunc.apply(departmentId);
+			logger.info(String.format("Departement 1%s=%s", departmentId, dname));
+			return Response.ok(dname).build();
 
 		} catch (Exception e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 		return Response.status(Status.INTERNAL_SERVER_ERROR).build();
 
 	}
 
+	/**
+	 * Download the most recent CSV Data file provided by French Health Agency
+	 * 
+	 * @return
+	 */
 	@Path("/download")
 	@GET
 	@Produces(MediaType.APPLICATION_JSON)
@@ -154,33 +175,42 @@ public class CovidResource {
 	}
 
 	/**
-	 * Load the python script that provide a function to retreive department names.
+	 * Load the PYTHON script that provide a function to retrieve department names
+	 * from their Ids.
 	 * 
 	 * @return
 	 * @throws IOException
 	 */
 	private Function<String, String> loadPythonScript() throws IOException {
-		Source source = Source.newBuilder("python", new File(pythonScript)).build();
+		Source source = Source.newBuilder("python", new File(pythonScriptFile)).build();
 		Value pyPart = polyglot.eval(source);
+		@SuppressWarnings("unchecked")
 		Function<String, String> getDepartmentNameByIdFunc = pyPart.getContext().getPolyglotBindings()
 				.getMember("getDepartmentNameById").as(Function.class);
 		return getDepartmentNameByIdFunc;
 	}
 
-	private Function<String, String> loadJScript() throws IOException {
-		Source source = Source.newBuilder("js", new File(jsScript)).build();
-		Value jsPart = polyglot.eval(source);
-		Function<String, String> downloadCsvDataFunc = jsPart.getContext().getPolyglotBindings().getMember("download")
-				.as(Function.class);
-		return downloadCsvDataFunc;
-	}
-
-	@Path("/{departmentId}")
+	@Path("/trends/{departmentId}")
 	@GET
 	@Produces({ "image/svg+xml" })
 	public Response getCovidHospitalisationGraphic(@PathParam("departmentId") String departmentId) {
 
-		CovidDto[] datas = { new CovidDto(departmentId, csvLocalFilePath) };
+		// Validate departementId formating with Javascript
+		// 1=> 01, 2=>02 .... 9=>09
+
+		polyglot.eval("js",
+				(" function patchDeptId (deptId) { if(deptId.length==1) {return `0`+deptId } else return deptId } "));
+
+		departmentId = polyglot.getBindings("js").getMember("patchDeptId").execute(departmentId).asString();
+
+		polyglot.eval("js", String.format("print('running with departmentId=%s in JavaScript!')", departmentId));
+
+		// Get the department Name from Python script
+		String departmentName = getDepartmentNameByIdFunc.apply(departmentId);
+
+		// Display the covid graph in R for the selected departement
+
+		CovidDto[] datas = { new CovidDto(departmentId, csvLocalFilePath, departmentName) };
 		CovidDtoTable dataTable = new CovidDtoTable(datas);
 		Function<CovidDtoTable, String> rplotFunc = polyglot.eval(rSource).as(Function.class);
 		String svgData = rplotFunc.apply(dataTable);
@@ -189,6 +219,11 @@ public class CovidResource {
 
 	}
 
+	/**
+	 * Default endpoint: return the graph for department =78
+	 * 
+	 * @return
+	 */
 	@Path("/")
 	@GET
 	@Produces({ "image/svg+xml" })

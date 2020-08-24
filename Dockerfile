@@ -4,9 +4,6 @@ FROM maven:3.6-jdk-11 as build
 
 WORKDIR /helidon
 
-# Create a first layer to cache the "Maven World" in the local repository.
-# Incremental docker builds will always resume after that, unless you update
-# the pom
 ADD pom.xml .
 RUN mvn package -DskipTests
 
@@ -17,13 +14,28 @@ RUN mvn package -DskipTests
 RUN echo "done!"
 
 # 2nd stage, build the runtime image
-FROM openjdk:11-jre-slim
+
+FROM oracle/graalvm-ce:20.2.0-java11
+
 WORKDIR /helidon
+
+#Install
+RUN $JAVA_HOME/bin/gu install python R 
+
+
+ADD scripts/*  /helidon/scripts/
+ADD  datagouvfr.pem /helidon/certs/datagouvfr.pem 
+
+# Add datagouvfr cert
+RUN  keytool  -importcert  -file /helidon/certs/datagouvfr.pem  -alias datagouvfr -keystore $JAVA_HOME/lib/security/cacerts -storepass changeit -trustcacerts -noprompt    
+
+
+
 
 # Copy the binary built in the 1st stage
 COPY --from=build /helidon/target/helidon-polyglot-demo.jar ./
 COPY --from=build /helidon/target/libs ./libs
 
-CMD ["java", "-jar", "helidon-polyglot-demo.jar"]
+CMD ["java", "-jar", "-Dapp.covid.rscript=/helidon/scripts/covidgraph.R", "-Dapp.covid.cscript=/helidon/scripts/downloadstatus" , "-Dapp.covid.pyscript=/helidon/scripts/department.py" , "helidon-polyglot-demo.jar"]
 
 EXPOSE 8080

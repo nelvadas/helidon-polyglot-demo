@@ -1,7 +1,4 @@
-import csv
-import sys
 import polyglot
-import os
 
 dnames={
 "01":  "AIN",
@@ -109,8 +106,10 @@ dnames={
 
 @polyglot.export_value
 def getDepartmentNameById(deptId):
+  if deptId in dnames:
       return dnames[deptId]
+  else: 
+    return "-"
     
-#polyglot.export_value("departmentNamesObj",dnames)
 
 
