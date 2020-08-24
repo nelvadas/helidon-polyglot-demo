@@ -1,4 +1,4 @@
-# Helidon MP Polyglot Demo
+# Helidon Polyglot Microservice Demo
 
 Sample Helidon MP project that includes multiple REST operations with various implementations languages  to showcase GraalVM Polyglot features.
 The application provides an Helidon Microservices that enables users to visualize a Covid-19 evolution in France, This application relies on data provided by the French National Health Agency ( Santé Publique France).
@@ -223,12 +223,11 @@ You can repeat the operation with various French departements
 `75 (Paris), 78 (Yvelines) ...`
 
 
-### Try health and metrics
+### Check health and metrics
 
 ```
 curl -s -X GET http://localhost:8080/health
-{"outcome":"UP",...
-. . .
+
 ```
 
 ## Build the Docker Image  :whale:
@@ -240,8 +239,18 @@ docker build -t helidon-polyglot-demo .
 ## Start the application with Docker
 
 ```
-docker run --rm -p 8081:8080 helidon-polyglot-demo:latest
+docker run --rm -p 8080:8080 helidon-polyglot-demo:latest
 ```
+A docker image `nelvadas/helidon-polyglot-demo` is available on Docker Hub for this app.
+```
+docker run --rm -p 8080:8080 nelvadas/helidon-polyglot-demo:1.0.0
+```
+
+```bash
+docker tag helidon-polyglot-demo:latest  nelvadas/helidon-polyglot-demo:1.0.0
+docker push nelvadas/helidon-polyglot-demo:1.0.0
+```
+
 
 Exercise the application as described above
 
@@ -249,10 +258,15 @@ Exercise the application as described above
 1. Download /tmp/covid-data.csv 
 
 ```
-curl -s -X GET http://localhost:8081/covid-19/fr/download
+curl -s -X GET http://localhost:8080/covid-19/fr/download
 
 ```
 2. Check trends for another departement 
 ```
-http://localhost:8081/covid-19/fr/trends/78
+http://localhost:8080/covid-19/fr/trends/33
 ```
+
+
+![](./covidtrendsgironde.png)
+
+Congratulations and thanks for reading :white_check_mark:
